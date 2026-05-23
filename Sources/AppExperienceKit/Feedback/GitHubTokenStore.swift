@@ -2,11 +2,19 @@ import Foundation
 import Security
 
 public final class KeychainGitHubTokenStore: GitHubTokenStore {
+    public static var defaultService: String {
+        if let bundleIdentifier = Bundle.main.bundleIdentifier?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !bundleIdentifier.isEmpty {
+            return "\(bundleIdentifier).github-feedback"
+        }
+        return "app-experience-kit.github-feedback"
+    }
+
     private let service: String
     private let account: String
 
     public init(
-        service: String = "dev.boster.expanse.planner.github",
+        service: String = KeychainGitHubTokenStore.defaultService,
         account: String = "early-adopter-feedback"
     ) {
         self.service = service

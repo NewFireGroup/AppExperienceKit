@@ -63,16 +63,16 @@ struct FeedbackPackageTests {
         let unconfigured = GitHubFeedbackConfiguration.mainBundle(bundle: bundle)
         let configured = GitHubFeedbackConfiguration.mainBundle(
             bundle: bundle,
-            defaultOwner: "NewFireGroup",
-            defaultRepo: "ExpansePlanner"
+            defaultOwner: "ExampleOrg",
+            defaultRepo: "ExampleApp"
         )
 
         #expect(unconfigured.clientID == nil)
         #expect(unconfigured.owner.isEmpty)
         #expect(unconfigured.repo.isEmpty)
         #expect(!unconfigured.isIssueSubmissionConfigured)
-        #expect(configured.owner == "NewFireGroup")
-        #expect(configured.repo == "ExpansePlanner")
+        #expect(configured.owner == "ExampleOrg")
+        #expect(configured.repo == "ExampleApp")
         #expect(configured.isIssueSubmissionConfigured)
     }
 
