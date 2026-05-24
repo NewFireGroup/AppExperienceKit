@@ -43,7 +43,8 @@ boundary guidance.
 `AppExperienceKit` uses semantic versioning. While the package is below 1.0,
 minor releases may include source-breaking API changes as the public adapter
 surface stabilizes. Patch releases should remain source-compatible within the
-same minor version.
+same minor version. See [CONTRIBUTING.md](CONTRIBUTING.md) for the pre-1.0
+patch-versus-minor tagging policy.
 
 ## Contributing
 

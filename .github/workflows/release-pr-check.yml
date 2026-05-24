@@ -1,0 +1,67 @@
+name: Release PR
+
+on:
+  pull_request:
+    types:
+      - opened
+      - edited
+      - synchronize
+      - reopened
+      - labeled
+      - unlabeled
+      - ready_for_review
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: release-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  changelog:
+    name: Release PR changelog
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Require changelog for release PRs
+        env:
+          EVENT_PATH: ${{ github.event_path }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          ruby <<'RUBY' > release-pr.env
+          require "json"
+
+          event = JSON.parse(File.read(ENV.fetch("EVENT_PATH")))
+          pull_request = event.fetch("pull_request")
+          title = pull_request.fetch("title").downcase
+          labels = pull_request.fetch("labels").map { |label| label.fetch("name").downcase }
+          release_pr = title.start_with?("release:") ||
+                       title.start_with?("release ") ||
+                       labels.include?("release")
+
+          puts "RELEASE_PR=#{release_pr ? "true" : "false"}"
+          RUBY
+
+          source release-pr.env
+          echo "Release PR: $RELEASE_PR"
+
+          if [ "$RELEASE_PR" != "true" ]; then
+            exit 0
+          fi
+
+          git fetch --no-tags origin "$BASE_REF:refs/remotes/origin/$BASE_REF"
+          changed_files="$(git diff --name-only "origin/$BASE_REF"...HEAD)"
+          echo "$changed_files"
+
+          if ! printf '%s\n' "$changed_files" | grep -qx 'CHANGELOG.md'; then
+            echo "Release PRs must update CHANGELOG.md."
+            echo "Use a title starting with 'release:' or the 'release' label only when preparing a package release."
+            exit 1
+          fi
