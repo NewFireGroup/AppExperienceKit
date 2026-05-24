@@ -22,7 +22,7 @@ resources.
 Use Swift Package Manager:
 
 ```swift
-.package(url: "https://github.com/NewFireGroup/AppExperienceKit.git", from: "0.1.0")
+.package(url: "https://github.com/NewFireGroup/AppExperienceKit.git", from: "0.1.1")
 ```
 
 For apps that need tighter pre-1.0 stability, pin to the current minor release
@@ -47,8 +47,11 @@ same minor version.
 
 ## Contributing
 
-Issues and pull requests are welcome. Open an issue before broad API, UI, or
-adapter changes so the package boundary can stay useful across host apps.
+Issues and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md)
+before broad API, UI, or adapter changes so the package boundary can stay
+useful across host apps.
+
+See [CHANGELOG.md](CHANGELOG.md) for release notes.
 
 ## License
 
