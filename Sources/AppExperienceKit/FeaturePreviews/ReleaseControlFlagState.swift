@@ -186,3 +186,166 @@ public struct ReleaseControlFlagStateLoader: Sendable {
         return await load(using: client)
     }
 }
+
+public struct ReleaseControlDescriptorState: Identifiable, Sendable, Equatable {
+    private static let standardVariableDefaults: [(key: String, defaultValue: String)] = [
+        ("flag_type", ReleaseControlFlagType.onDemand.rawValue),
+        ("flag_control_type", ReleaseControlFlagControlType.optIn.rawValue)
+    ]
+
+    public let descriptor: ReleaseControlDescriptor
+    public let displayName: String
+    public let decision: ReleaseControlDescriptorDecision
+    public let providerStatus: ReleaseControlStatus
+    public let preference: ReleaseControlPreference
+
+    public init(
+        descriptor: ReleaseControlDescriptor,
+        decision: ReleaseControlDescriptorDecision,
+        providerStatus: ReleaseControlStatus,
+        preference: ReleaseControlPreference = .systemDefault
+    ) {
+        self.descriptor = descriptor
+        self.displayName = descriptor.displayName
+        self.decision = decision
+        self.providerStatus = providerStatus
+        self.preference = preference
+    }
+
+    public var id: String {
+        descriptor.key
+    }
+
+    public var stateLabel: String {
+        if providerStatus.provider == .none || providerStatus.connectionState == .unavailable {
+            return "Unavailable"
+        }
+
+        if decision.flagControlType == .optIn {
+            switch preference {
+            case .optOut:
+                return "Off"
+            case .optIn:
+                return decision.isEnabled ? "Enabled" : "Requested"
+            case .systemDefault:
+                return decision.showsFeaturePreviewRow ? "Available" : "Disabled"
+            }
+        }
+
+        if preference == .optOut {
+            return "Off"
+        }
+
+        if decision.isEnabled {
+            return "Enabled"
+        }
+
+        if preference == .optIn {
+            return "Requested"
+        }
+
+        if decision.showsFeaturePreviewRow {
+            return "Available"
+        }
+
+        return decision.isEnabled ? "Enabled" : "Disabled"
+    }
+
+    public var readOnlyToggleValue: Bool {
+        preferenceToggleValue
+    }
+
+    public var preferenceToggleValue: Bool {
+        if decision.flagControlType == .optIn {
+            return preference == .optIn && decision.isEnabled
+        }
+
+        switch preference {
+        case .systemDefault:
+            return decision.isEnabled
+        case .optIn:
+            return true
+        case .optOut:
+            return false
+        }
+    }
+
+    public var isVisibleInFeaturePreviews: Bool {
+        return decision.showsFeaturePreviewRow || preference != .systemDefault
+    }
+
+    public var providerConnectionLabel: String {
+        providerStatus.connectionDisplayName
+    }
+
+    public var variationLabel: String? {
+        decision.variationKey
+    }
+
+    public var fallbackReason: String? {
+        decision.reason ?? providerStatus.reason
+    }
+
+    public var variableDetails: [ReleaseControlFlagVariableDetail] {
+        let standardKeys = Set(Self.standardVariableDefaults.map(\.key))
+        let standardDetails = Self.standardVariableDefaults.map { variable in
+            ReleaseControlFlagVariableDetail(
+                key: variable.key,
+                value: decision.variables[variable.key] ?? variable.defaultValue,
+                source: decision.variables[variable.key] == nil ? .systemDefault : .optimizely
+            )
+        }
+        let customDetails = decision.variables
+            .filter { !standardKeys.contains($0.key) }
+            .sorted { $0.key < $1.key }
+            .map {
+                ReleaseControlFlagVariableDetail(
+                    key: $0.key,
+                    value: $0.value,
+                    source: .optimizely
+                )
+            }
+
+        return standardDetails + customDetails
+    }
+}
+
+public struct ReleaseControlDescriptorStateLoader: Sendable {
+    private let releaseControls: [ReleaseControlDescriptor]
+    private let preferenceStore: ReleaseControlPreferenceStore
+
+    public init(
+        releaseControls: [ReleaseControlDescriptor] = ReleaseControlDescriptor.packageDefaults,
+        preferenceStore: ReleaseControlPreferenceStore = ReleaseControlPreferenceStore()
+    ) {
+        self.releaseControls = releaseControls
+        self.preferenceStore = preferenceStore
+    }
+
+    public func load(using client: any ReleaseControlDescriptorClient) async -> [ReleaseControlDescriptorState] {
+        let status = await client.status()
+        var states: [ReleaseControlDescriptorState] = []
+        states.reserveCapacity(releaseControls.count)
+
+        for descriptor in releaseControls {
+            let decision = await client.decision(for: descriptor)
+            let state = ReleaseControlDescriptorState(
+                descriptor: descriptor,
+                decision: decision,
+                providerStatus: status,
+                preference: preferenceStore.preference(for: descriptor)
+            )
+
+            if state.isVisibleInFeaturePreviews {
+                states.append(state)
+            }
+        }
+
+        return states
+    }
+
+    public func refresh(using client: any ReleaseControlDescriptorClient) async -> [ReleaseControlDescriptorState] {
+        await client.refresh()
+        return await load(using: client)
+    }
+}

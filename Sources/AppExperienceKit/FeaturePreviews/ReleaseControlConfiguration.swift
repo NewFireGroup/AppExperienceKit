@@ -29,7 +29,11 @@ public final class ReleaseControlPreferenceStore: @unchecked Sendable {
     }
 
     public func preference(for key: ReleaseControlKey) -> ReleaseControlPreference {
-        guard let rawValue = defaults.string(forKey: storageKey(for: key)),
+        preference(for: key.descriptor)
+    }
+
+    public func preference(for descriptor: ReleaseControlDescriptor) -> ReleaseControlPreference {
+        guard let rawValue = defaults.string(forKey: storageKey(for: descriptor)),
               let preference = ReleaseControlPreference(rawValue: rawValue)
         else {
             return .systemDefault
@@ -43,28 +47,48 @@ public final class ReleaseControlPreferenceStore: @unchecked Sendable {
         for key: ReleaseControlKey,
         notifiesObservers: Bool = true
     ) {
-        defaults.set(preference.rawValue, forKey: storageKey(for: key))
+        setPreference(preference, for: key.descriptor, notifiesObservers: notifiesObservers)
+    }
+
+    public func setPreference(
+        _ preference: ReleaseControlPreference,
+        for descriptor: ReleaseControlDescriptor,
+        notifiesObservers: Bool = true
+    ) {
+        defaults.set(preference.rawValue, forKey: storageKey(for: descriptor))
         guard notifiesObservers else {
             return
         }
 
-        postPreferenceDidChange(for: key)
+        postPreferenceDidChange(for: descriptor)
     }
 
     public func postPreferenceDidChange(for key: ReleaseControlKey) {
+        postPreferenceDidChange(for: key.descriptor)
+    }
+
+    public func postPreferenceDidChange(for descriptor: ReleaseControlDescriptor) {
         NotificationCenter.default.post(
             name: Self.preferenceDidChangeNotification,
             object: self,
-            userInfo: [Self.preferenceDidChangeReleaseControlKey: key.rawValue]
+            userInfo: [Self.preferenceDidChangeReleaseControlKey: descriptor.key]
         )
     }
 
     public func attributes(for key: ReleaseControlKey) -> [String: String] {
-        [Self.attributeKey: preference(for: key).rawValue]
+        attributes(for: key.descriptor)
+    }
+
+    public func attributes(for descriptor: ReleaseControlDescriptor) -> [String: String] {
+        [Self.attributeKey: preference(for: descriptor).rawValue]
     }
 
     private func storageKey(for key: ReleaseControlKey) -> String {
-        Self.keyPrefix + key.rawValue
+        storageKey(for: key.descriptor)
+    }
+
+    private func storageKey(for descriptor: ReleaseControlDescriptor) -> String {
+        Self.keyPrefix + descriptor.key
     }
 }
 
@@ -159,9 +183,16 @@ public struct ReleaseControlConfiguration: Sendable, Equatable {
         for key: ReleaseControlKey,
         preferenceStore: ReleaseControlPreferenceStore = ReleaseControlPreferenceStore()
     ) -> [String: String] {
+        decisionAttributes(for: key.descriptor, preferenceStore: preferenceStore)
+    }
+
+    public func decisionAttributes(
+        for descriptor: ReleaseControlDescriptor,
+        preferenceStore: ReleaseControlPreferenceStore = ReleaseControlPreferenceStore()
+    ) -> [String: String] {
         var values = attributes
         values.merge(
-            preferenceStore.attributes(for: key),
+            preferenceStore.attributes(for: descriptor),
             uniquingKeysWith: { _, preferenceValue in preferenceValue }
         )
         return values
@@ -172,8 +203,16 @@ public struct ReleaseControlConfiguration: Sendable, Equatable {
         variationKey: String?,
         attributes currentAttributes: [String: String]? = nil
     ) -> [String: String] {
+        decisionDiagnostics(for: key.descriptor, variationKey: variationKey, attributes: currentAttributes)
+    }
+
+    public func decisionDiagnostics(
+        for descriptor: ReleaseControlDescriptor,
+        variationKey: String?,
+        attributes currentAttributes: [String: String]? = nil
+    ) -> [String: String] {
         var values = currentAttributes ?? attributes
-        values["release_control_flag_key"] = key.rawValue
+        values["release_control_flag_key"] = descriptor.key
 
         if let variationKey {
             values["release_control_variation_key"] = variationKey

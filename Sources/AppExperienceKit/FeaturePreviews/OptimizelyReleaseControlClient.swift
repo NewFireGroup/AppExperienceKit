@@ -45,9 +45,21 @@ public final class OptimizelyReleaseControlClient: ReleaseControlClient, @unchec
     }
 
     public func decision(for key: ReleaseControlKey) async -> ReleaseControlDecision {
-        let attributes = currentAttributes(for: key)
+        let descriptorDecision = await decision(for: key.descriptor)
+        return ReleaseControlDecision(
+            key: key,
+            isEnabled: descriptorDecision.isEnabled,
+            variationKey: descriptorDecision.variationKey,
+            variables: descriptorDecision.variables,
+            diagnostics: descriptorDecision.diagnostics,
+            reason: descriptorDecision.reason
+        )
+    }
+
+    public func decision(for descriptor: ReleaseControlDescriptor) async -> ReleaseControlDescriptorDecision {
+        let attributes = currentAttributes(for: descriptor)
         let user = client.createUserContext(userId: userId, attributes: attributes)
-        let decision = user.decide(key: key.rawValue)
+        let decision = user.decide(key: descriptor.key)
         let placeholderTitle: String? = decision.variables.getValue(jsonPath: "placeholder_title")
         let placeholderBody: String? = decision.variables.getValue(jsonPath: "placeholder_body")
         let aiAssistEnabled = Self.booleanVariableString(
@@ -81,13 +93,13 @@ public final class OptimizelyReleaseControlClient: ReleaseControlClient, @unchec
             "app_lock_mode": appLockMode
         ].compactMapValues { $0 }
 
-        return ReleaseControlDecision(
-            key: key,
+        return ReleaseControlDescriptorDecision(
+            descriptor: descriptor,
             isEnabled: decision.enabled,
             variationKey: decision.variationKey,
             variables: variables,
             diagnostics: configuration.decisionDiagnostics(
-                for: key,
+                for: descriptor,
                 variationKey: decision.variationKey,
                 attributes: attributes
             ),
@@ -96,7 +108,18 @@ public final class OptimizelyReleaseControlClient: ReleaseControlClient, @unchec
     }
 
     public func track(_ event: ReleaseControlEvent) async {
-        let attributes = currentAttributes(for: event.releaseControlKey)
+        let attributes = currentAttributes(for: event.releaseControlKey.descriptor)
+        let user = client.createUserContext(userId: userId, attributes: attributes)
+
+        do {
+            try user.trackEvent(eventKey: event.key, eventTags: event.eventTags)
+        } catch {
+            logger.error("Failed to track Optimizely event \(event.key, privacy: .public): \(String(describing: error), privacy: .public)")
+        }
+    }
+
+    public func track(_ event: ReleaseControlCustomEvent) async {
+        let attributes = currentAttributes(for: event.releaseControl)
         let user = client.createUserContext(userId: userId, attributes: attributes)
 
         do {
@@ -116,8 +139,8 @@ public final class OptimizelyReleaseControlClient: ReleaseControlClient, @unchec
         return ReleaseControlBoolVariable.normalizedString(stringValue: stringValue, boolValue: nil)
     }
 
-    private func currentAttributes(for key: ReleaseControlKey) -> [String: String] {
-        var attributes = configuration.decisionAttributes(for: key, preferenceStore: preferenceStore)
+    private func currentAttributes(for descriptor: ReleaseControlDescriptor) -> [String: String] {
+        var attributes = configuration.decisionAttributes(for: descriptor, preferenceStore: preferenceStore)
         if attributes["release_control_identity_source"] != "explicit_override" {
             attributes["auth_state"] = identityStore.authState.rawValue
         }

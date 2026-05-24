@@ -7,6 +7,14 @@ releases may include source-breaking API changes as the public adapter surface
 stabilizes. Patch releases should remain source-compatible within the same
 minor version.
 
+## 0.1.2 - 2026-05-24
+
+- Added host-defined release-control descriptors so apps can extend Feature
+  Previews without adding app-specific keys to AppExperienceKit.
+- Added descriptor-based preference, decision, state loading, Settings, Feature
+  Previews, and custom aggregate-event APIs while preserving existing
+  `ReleaseControlKey` APIs.
+
 ## 0.1.1 - 2026-05-24
 
 - Added GitHub Actions CI for Swift package validation.

@@ -46,6 +46,14 @@ The package exposes host-facing adapters instead of depending on app types:
   be available.
 - `ReleaseControlClient` is the release-control adapter. Host apps choose
   `OptimizelyReleaseControlClient` or `NoopReleaseControlClient` at launch.
+- `ReleaseControlDescriptor` lets host apps add app-owned release controls to
+  Feature Previews without adding cases to the package-owned `ReleaseControlKey`
+  enum. Pass package defaults plus host descriptors to
+  `AppSettingsView(featurePreviewReleaseControls:)` or
+  `ReleaseControlFlagStatesView(releaseControls:)`.
+- `ReleaseControlCustomEvent` lets host apps track safe aggregate events for
+  app-owned release controls without adding app-specific event cases to the
+  package.
 - `FeedbackAIClient`, `GitHubIssueClient`, `GitHubIdentityClient`, `HTTPClient`,
   `GitHubTokenStore`, and `LocalAuthenticating` keep external services
   injectable for tests and for future host apps.

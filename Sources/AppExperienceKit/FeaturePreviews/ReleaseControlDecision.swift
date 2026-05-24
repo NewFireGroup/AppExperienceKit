@@ -215,3 +215,129 @@ public struct ReleaseControlDecision: Sendable, Equatable {
         diagnostics[diagnosticKey]
     }
 }
+
+public struct ReleaseControlDescriptorDecision: Sendable, Equatable {
+    public let descriptor: ReleaseControlDescriptor
+    public let isEnabled: Bool
+    public let variationKey: String?
+    public let variables: [String: String]
+    public let diagnostics: [String: String]
+    public let reason: String?
+
+    public init(
+        descriptor: ReleaseControlDescriptor,
+        isEnabled: Bool,
+        variationKey: String? = nil,
+        variables: [String: String] = [:],
+        diagnostics: [String: String] = [:],
+        reason: String? = nil
+    ) {
+        self.descriptor = descriptor
+        self.isEnabled = isEnabled
+        self.variationKey = variationKey
+        self.variables = variables
+        self.diagnostics = diagnostics
+        self.reason = reason
+    }
+
+    public init(decision: ReleaseControlDecision, descriptor: ReleaseControlDescriptor? = nil) {
+        self.init(
+            descriptor: descriptor ?? decision.key.descriptor,
+            isEnabled: decision.isEnabled,
+            variationKey: decision.variationKey,
+            variables: decision.variables,
+            diagnostics: decision.diagnostics,
+            reason: decision.reason
+        )
+    }
+
+    public static func disabled(
+        _ descriptor: ReleaseControlDescriptor,
+        reason: String? = nil
+    ) -> ReleaseControlDescriptorDecision {
+        ReleaseControlDescriptorDecision(descriptor: descriptor, isEnabled: false, reason: reason)
+    }
+
+    public func applying(_ preference: ReleaseControlPreference) -> ReleaseControlDescriptorDecision {
+        guard isEnabled else {
+            return self
+        }
+
+        switch flagControlType {
+        case .optIn where preference != .optIn:
+            return ReleaseControlDescriptorDecision(
+                descriptor: descriptor,
+                isEnabled: false,
+                variationKey: variationKey,
+                variables: variables,
+                diagnostics: diagnostics,
+                reason: preference == .optOut ? "Local preference is off" : "Local opt-in is required"
+            )
+        case .optOut where preference == .optOut:
+            return ReleaseControlDescriptorDecision(
+                descriptor: descriptor,
+                isEnabled: false,
+                variationKey: variationKey,
+                variables: variables,
+                diagnostics: diagnostics,
+                reason: "Local preference is off"
+            )
+        default:
+            return self
+        }
+    }
+
+    public var flagType: ReleaseControlFlagType {
+        guard let rawValue = stringValue(for: "flag_type"),
+              let flagType = ReleaseControlFlagType(rawValue: rawValue)
+        else {
+            return .onDemand
+        }
+
+        return flagType
+    }
+
+    public var flagControlType: ReleaseControlFlagControlType {
+        guard let rawValue = stringValue(for: "flag_control_type"),
+              let controlType = ReleaseControlFlagControlType(rawValue: rawValue)
+        else {
+            return .optIn
+        }
+
+        return controlType
+    }
+
+    public func isActive(preference: ReleaseControlPreference) -> Bool {
+        applying(preference).isEnabled
+    }
+
+    public var showsFeaturePreviewRow: Bool {
+        isEnabled
+    }
+
+    public func stringValue(for variableKey: String) -> String? {
+        variables[variableKey]
+    }
+
+    public func boolValue(for variableKey: String) -> Bool? {
+        guard let value = variables[variableKey]?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
+              !value.isEmpty
+        else {
+            return nil
+        }
+
+        if ["true", "1", "yes", "enabled", "on"].contains(value) {
+            return true
+        }
+
+        if ["false", "0", "no", "disabled", "off"].contains(value) {
+            return false
+        }
+
+        return nil
+    }
+
+    public func diagnosticValue(for diagnosticKey: String) -> String? {
+        diagnostics[diagnosticKey]
+    }
+}

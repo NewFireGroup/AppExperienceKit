@@ -22,11 +22,30 @@ resources.
 Use Swift Package Manager:
 
 ```swift
-.package(url: "https://github.com/NewFireGroup/AppExperienceKit.git", from: "0.1.1")
+.package(url: "https://github.com/NewFireGroup/AppExperienceKit.git", from: "0.1.2")
 ```
 
 For apps that need tighter pre-1.0 stability, pin to the current minor release
 or an exact revision.
+
+## Host-Defined Release Controls
+
+Host apps can extend Feature Previews with app-owned release controls without
+adding package enum cases:
+
+```swift
+let cashflowReports = ReleaseControlDescriptor(
+    key: "cashflow_reports_feature",
+    displayName: "Cashflow Reports"
+)
+
+AppSettingsView(
+    featurePreviewReleaseControls: ReleaseControlDescriptor.packageDefaults + [cashflowReports]
+)
+```
+
+Use `ReleaseControlCustomEvent` for host-owned aggregate telemetry events that
+should be evaluated with a host-defined descriptor.
 
 ## Validation
 
