@@ -34,19 +34,22 @@ public struct AppSettingsView: View {
     private let bundle: Bundle
     private let hostConfiguration: AppExperienceHostConfiguration
     private let githubFeedbackConfiguration: GitHubFeedbackConfiguration
+    private let featurePreviewReleaseControls: [ReleaseControlDescriptor]
 
     public init(
         publicReleaseHistory: PublicReleaseHistory = .bundled(),
         versionHistory: VersionHistory = .bundled(),
         bundle: Bundle = .main,
         hostConfiguration: AppExperienceHostConfiguration? = nil,
-        githubFeedbackConfiguration: GitHubFeedbackConfiguration? = nil
+        githubFeedbackConfiguration: GitHubFeedbackConfiguration? = nil,
+        featurePreviewReleaseControls: [ReleaseControlDescriptor] = ReleaseControlDescriptor.packageDefaults
     ) {
         self.publicReleaseHistory = publicReleaseHistory
         self.versionHistory = versionHistory
         self.bundle = bundle
         self.hostConfiguration = hostConfiguration ?? .mainBundle(bundle: bundle)
         self.githubFeedbackConfiguration = githubFeedbackConfiguration ?? .mainBundle(bundle: bundle)
+        self.featurePreviewReleaseControls = featurePreviewReleaseControls
     }
 
     public var body: some View {
@@ -62,7 +65,7 @@ public struct AppSettingsView: View {
                 }
 
                 NavigationLink {
-                    ReleaseControlFlagStatesView()
+                    ReleaseControlFlagStatesView(releaseControls: featurePreviewReleaseControls)
                 } label: {
                     Label(AppSettingsDestination.featurePreviews.title, systemImage: AppSettingsDestination.featurePreviews.systemImage)
                 }

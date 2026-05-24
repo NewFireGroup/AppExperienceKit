@@ -20,6 +20,167 @@ struct ReleaseControlBehaviorTests {
     }
 
     @Test
+    func releaseControlDescriptorsRepresentPackageAndHostKeys() {
+        let descriptor = ReleaseControlDescriptor(
+            key: "cashflow_reports_feature",
+            displayName: "Cashflow Reports"
+        )
+
+        #expect(descriptor.id == "cashflow_reports_feature")
+        #expect(descriptor.key == "cashflow_reports_feature")
+        #expect(descriptor.displayName == "Cashflow Reports")
+        #expect(ReleaseControlKey.feedbackFeature.descriptor.key == "feedback_feature")
+        #expect(ReleaseControlKey.feedbackFeature.descriptor.displayName == "Feedback")
+        #expect(ReleaseControlDescriptor.packageDefaults.map(\.key) == ReleaseControlKey.allCases.map(\.rawValue))
+    }
+
+    @Test
+    func descriptorPreferenceStoreUsesReleaseControlStorageNamespace() throws {
+        let suiteName = "ReleaseControlDescriptorPreferenceStore-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+        let store = ReleaseControlPreferenceStore(defaults: defaults)
+        let descriptor = ReleaseControlDescriptor(
+            key: "cashflow_reports_feature",
+            displayName: "Cashflow Reports"
+        )
+
+        #expect(store.preference(for: descriptor) == .systemDefault)
+
+        store.setPreference(.optIn, for: descriptor, notifiesObservers: false)
+
+        #expect(store.preference(for: descriptor) == .optIn)
+        #expect(defaults.string(forKey: "releaseControl.preference.cashflow_reports_feature") == "opt_in")
+        #expect(store.attributes(for: descriptor) == ["release_control_preference": "opt_in"])
+    }
+
+    @Test
+    func descriptorStateLoaderBuildsHostDefinedFeaturePreviewStates() async throws {
+        let suiteName = "ReleaseControlDescriptorStateLoader-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+        let preferenceStore = ReleaseControlPreferenceStore(defaults: defaults)
+        let descriptor = ReleaseControlDescriptor(
+            key: "cashflow_reports_feature",
+            displayName: "Cashflow Reports"
+        )
+        let client = ReleaseControlDescriptorStateRecordingClient(
+            status: ReleaseControlStatus(
+                provider: .optimizely,
+                connectionState: .connected,
+                environmentKey: "development",
+                userId: "anonymous-install",
+                datafileURL: URL(string: "https://cdn.optimizely.com/datafiles/test.json")
+            ),
+            decisions: [
+                descriptor.key: ReleaseControlDescriptorDecision(
+                    descriptor: descriptor,
+                    isEnabled: true,
+                    variationKey: "opt_in_available"
+                )
+            ]
+        )
+        let loader = ReleaseControlDescriptorStateLoader(
+            releaseControls: [descriptor],
+            preferenceStore: preferenceStore
+        )
+
+        let availableStates = await loader.load(using: client)
+        #expect(availableStates.count == 1)
+        #expect(availableStates[0].descriptor == descriptor)
+        #expect(availableStates[0].displayName == "Cashflow Reports")
+        #expect(availableStates[0].stateLabel == "Available")
+        #expect(!availableStates[0].preferenceToggleValue)
+
+        preferenceStore.setPreference(.optIn, for: descriptor, notifiesObservers: false)
+
+        let enabledStates = await loader.load(using: client)
+        #expect(enabledStates.count == 1)
+        #expect(enabledStates[0].stateLabel == "Enabled")
+        #expect(enabledStates[0].preferenceToggleValue)
+    }
+
+    @Test
+    func descriptorStateLoaderHidesDisabledHostKeysUntilLocallyChanged() async throws {
+        let suiteName = "ReleaseControlDescriptorStateLoaderHidden-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+        let preferenceStore = ReleaseControlPreferenceStore(defaults: defaults)
+        let descriptor = ReleaseControlDescriptor(
+            key: "cashflow_reports_feature",
+            displayName: "Cashflow Reports"
+        )
+        let client = ReleaseControlDescriptorStateRecordingClient(
+            status: ReleaseControlStatus(
+                provider: .optimizely,
+                connectionState: .connected,
+                environmentKey: "development",
+                userId: "anonymous-install"
+            ),
+            decisions: [
+                descriptor.key: .disabled(descriptor, reason: "Audience excluded")
+            ]
+        )
+        let loader = ReleaseControlDescriptorStateLoader(
+            releaseControls: [descriptor],
+            preferenceStore: preferenceStore
+        )
+
+        let hiddenStates = await loader.load(using: client)
+        #expect(hiddenStates.isEmpty)
+
+        preferenceStore.setPreference(.optOut, for: descriptor, notifiesObservers: false)
+
+        let locallyChangedStates = await loader.load(using: client)
+        #expect(locallyChangedStates.count == 1)
+        #expect(locallyChangedStates[0].stateLabel == "Off")
+    }
+
+    @Test
+    func customReleaseControlEventsCarryHostKeysAndAggregateProperties() {
+        let descriptor = ReleaseControlDescriptor(
+            key: "cashflow_reports_feature",
+            displayName: "Cashflow Reports"
+        )
+        let event = ReleaseControlCustomEvent(
+            releaseControl: descriptor,
+            key: "cashflow_report_selected",
+            eventProperties: [
+                "report_kind": "summary",
+                "variation_key": "opt_in_available"
+            ]
+        )
+
+        #expect(event.releaseControl == descriptor)
+        #expect(event.key == "cashflow_report_selected")
+        #expect(event.eventProperties == [
+            "report_kind": "summary",
+            "variation_key": "opt_in_available"
+        ])
+        #expect(event.eventTags["$opt_event_properties"] as? [String: String] == event.eventProperties)
+    }
+
+    @Test
+    @MainActor
+    func settingsAndFeaturePreviewViewsAcceptHostReleaseControls() {
+        let descriptor = ReleaseControlDescriptor(
+            key: "cashflow_reports_feature",
+            displayName: "Cashflow Reports"
+        )
+        let settings = AppSettingsView(featurePreviewReleaseControls: ReleaseControlDescriptor.packageDefaults + [descriptor])
+        let featurePreviews = ReleaseControlFlagStatesView(releaseControls: [descriptor])
+
+        #expect(String(describing: type(of: settings)) == "AppSettingsView")
+        #expect(String(describing: type(of: featurePreviews)) == "ReleaseControlFlagStatesView")
+    }
+
+    @Test
     func feedbackReleaseControlDecisionControlsNavigationAndAIAssist() {
         let enabled = ReleaseControlDecision(
             key: .feedbackFeature,
@@ -1348,6 +1509,39 @@ private actor ReleaseControlFlagStateRecordingClient: ReleaseControlClient {
     }
 
     func track(_ event: ReleaseControlEvent) async {
+    }
+}
+
+private actor ReleaseControlDescriptorStateRecordingClient: ReleaseControlDescriptorClient {
+    private let storedStatus: ReleaseControlStatus
+    private let decisions: [String: ReleaseControlDescriptorDecision]
+    private var storedRefreshCount = 0
+
+    init(
+        status: ReleaseControlStatus,
+        decisions: [String: ReleaseControlDescriptorDecision]
+    ) {
+        self.storedStatus = status
+        self.decisions = decisions
+    }
+
+    func status() async -> ReleaseControlStatus {
+        storedStatus
+    }
+
+    var refreshCount: Int {
+        storedRefreshCount
+    }
+
+    func refresh() async {
+        storedRefreshCount += 1
+    }
+
+    func decision(for descriptor: ReleaseControlDescriptor) async -> ReleaseControlDescriptorDecision {
+        decisions[descriptor.key] ?? .disabled(descriptor, reason: "No fake decision configured")
+    }
+
+    func track(_ event: ReleaseControlCustomEvent) async {
     }
 }
 

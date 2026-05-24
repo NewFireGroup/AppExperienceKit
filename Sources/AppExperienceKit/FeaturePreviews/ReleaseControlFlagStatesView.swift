@@ -3,19 +3,23 @@ import SwiftUI
 public struct ReleaseControlFlagStatesView: View {
     @Environment(\.releaseControlClient) private var releaseControlClient
 
-    @State private var states: [ReleaseControlFlagState] = []
+    @State private var states: [ReleaseControlDescriptorState] = []
     @State private var providerStatus: ReleaseControlStatus?
     @State private var isLoading = true
     @State private var isRefreshing = false
 
-    private let loader: ReleaseControlFlagStateLoader
+    private let loader: ReleaseControlDescriptorStateLoader
     private let preferenceStore: ReleaseControlPreferenceStore
 
     public init(
+        releaseControls: [ReleaseControlDescriptor] = ReleaseControlDescriptor.packageDefaults,
         preferenceStore: ReleaseControlPreferenceStore = ReleaseControlPreferenceStore()
     ) {
         self.preferenceStore = preferenceStore
-        self.loader = ReleaseControlFlagStateLoader(preferenceStore: preferenceStore)
+        self.loader = ReleaseControlDescriptorStateLoader(
+            releaseControls: releaseControls,
+            preferenceStore: preferenceStore
+        )
     }
 
     public var body: some View {
@@ -43,7 +47,7 @@ public struct ReleaseControlFlagStatesView: View {
             } else {
                 Section("Available Previews") {
                     ForEach(states) { state in
-                        ReleaseControlFlagStateRow(state: state) { isEnabled in
+                        ReleaseControlDescriptorStateRow(state: state) { isEnabled in
                             Task {
                                 await updatePreference(isEnabled, for: state)
                             }
@@ -98,15 +102,15 @@ public struct ReleaseControlFlagStatesView: View {
     }
 
     @MainActor
-    private func updatePreference(_ isEnabled: Bool, for state: ReleaseControlFlagState) async {
+    private func updatePreference(_ isEnabled: Bool, for state: ReleaseControlDescriptorState) async {
         let previousPreference = state.preference
         preferenceStore.setPreference(
             isEnabled ? .optIn : .optOut,
-            for: state.key,
+            for: state.descriptor,
             notifiesObservers: false
         )
 
-        if state.key == .authenticationFeature {
+        if state.descriptor.key == ReleaseControlKey.authenticationFeature.rawValue {
             await releaseControlClient.track(isEnabled
                 ? .authenticationFeatureOptedIn(
                     launchSource: "feature_previews",
@@ -122,11 +126,11 @@ public struct ReleaseControlFlagStatesView: View {
         }
         states = await loader.refresh(using: releaseControlClient)
         await updateProviderStatus(from: states)
-        preferenceStore.postPreferenceDidChange(for: state.key)
+        preferenceStore.postPreferenceDidChange(for: state.descriptor)
     }
 
     @MainActor
-    private func updateProviderStatus(from loadedStates: [ReleaseControlFlagState]) async {
+    private func updateProviderStatus(from loadedStates: [ReleaseControlDescriptorState]) async {
         if let status = loadedStates.first?.providerStatus {
             providerStatus = status
         } else {
@@ -154,8 +158,8 @@ private struct ReleaseControlStatusSection: View {
     }
 }
 
-private struct ReleaseControlFlagStateRow: View {
-    let state: ReleaseControlFlagState
+private struct ReleaseControlDescriptorStateRow: View {
+    let state: ReleaseControlDescriptorState
     let onPreferenceChanged: (Bool) -> Void
 
     @State private var isShowingDetails = false
@@ -205,7 +209,7 @@ private struct ReleaseControlFlagStateRow: View {
             }
 
             if isShowingDetails {
-                ReleaseControlFlagStateDetails(state: state)
+                ReleaseControlDescriptorStateDetails(state: state)
                     .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
@@ -239,15 +243,15 @@ private struct ReleaseControlFlagStateRow: View {
     }
 }
 
-private struct ReleaseControlFlagStateDetails: View {
-    let state: ReleaseControlFlagState
+private struct ReleaseControlDescriptorStateDetails: View {
+    let state: ReleaseControlDescriptorState
 
     var body: some View {
         Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 4) {
             GridRow {
                 Text("Key")
                     .foregroundStyle(.secondary)
-                Text(state.key.rawValue)
+                Text(state.descriptor.key)
                     .monospaced()
             }
 

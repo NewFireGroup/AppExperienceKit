@@ -1,5 +1,26 @@
 import Foundation
 
+public struct ReleaseControlCustomEvent: Sendable, Equatable {
+    public let releaseControl: ReleaseControlDescriptor
+    public let key: String
+    public let eventProperties: [String: String]
+
+    public init(
+        releaseControl: ReleaseControlDescriptor,
+        key: String,
+        eventProperties: [String: String] = [:]
+    ) {
+        self.releaseControl = releaseControl
+        self.key = key
+        self.eventProperties = eventProperties
+    }
+
+    public var eventTags: [String: Any] {
+        guard !eventProperties.isEmpty else { return [:] }
+        return ["$opt_event_properties": eventProperties]
+    }
+}
+
 public enum ReleaseControlEvent: Sendable, Equatable {
     case planningFeatureOpened(variationKey: String?)
     case planningEditorOpened(variationKey: String?)

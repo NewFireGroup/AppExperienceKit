@@ -15,6 +15,13 @@ public struct NoopReleaseControlClient: ReleaseControlClient {
         .disabled(key, reason: reason)
     }
 
+    public func decision(for descriptor: ReleaseControlDescriptor) async -> ReleaseControlDescriptorDecision {
+        .disabled(descriptor, reason: reason)
+    }
+
     public func track(_ event: ReleaseControlEvent) async {
+    }
+
+    public func track(_ event: ReleaseControlCustomEvent) async {
     }
 }
