@@ -6,6 +6,54 @@ import Testing
 @MainActor
 struct FeedbackPackageTests {
     @Test
+    func appSettingsDestinationsSeparateAccountSecurityAndProductFeedback() {
+        #expect(AppSettingsDestination.allCases == [
+            .featurePreviews,
+            .accountSecurity,
+            .productFeedback
+        ])
+        #expect(AppSettingsDestination.accountSecurity.title == "Account & Security")
+        #expect(AppSettingsDestination.productFeedback.title == "Product Feedback")
+    }
+
+    @Test
+    func feedbackPaneStateOpensReplacesAndClosesContext() {
+        var state = FeedbackPaneState()
+        let cashflowContext = FeedbackLaunchContext(source: .cashflowSummary)
+        let settingsContext = FeedbackLaunchContext(source: .settings)
+
+        #expect(!state.isPresented)
+        #expect(state.launchContext == nil)
+        #expect(state.columnVisibility == .doubleColumn)
+
+        state.open(cashflowContext)
+
+        #expect(state.isPresented)
+        #expect(state.launchContext == cashflowContext)
+        #expect(state.columnVisibility == .doubleColumn)
+
+        state.open(settingsContext)
+
+        #expect(state.isPresented)
+        #expect(state.launchContext == settingsContext)
+
+        state.close()
+
+        #expect(!state.isPresented)
+        #expect(state.launchContext == nil)
+        #expect(state.columnVisibility == .doubleColumn)
+    }
+
+    @Test
+    func feedbackPaneStatePrefersMinimumAllowedColumnWidth() {
+        let width = FeedbackPaneState.feedbackColumnWidth
+
+        #expect(width.minimum == FeedbackPaneColumnWidth.compactPhoneWidth)
+        #expect(width.ideal == width.minimum)
+        #expect(width.maximum == width.minimum)
+    }
+
+    @Test
     func feedbackIssueRendererProducesTemplateAlignedMarkdown() {
         let draft = FeedbackDraft(
             category: .aiFeedback,
